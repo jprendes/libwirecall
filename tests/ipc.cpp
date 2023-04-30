@@ -1,7 +1,6 @@
 #include <wirecall.hpp>
 
 #include <asio.hpp>
-#include <asio/experimental/awaitable_operators.hpp>
 
 #include <exception>
 #include <iostream>
@@ -12,10 +11,6 @@
 namespace {
 
 using namespace std::literals;
-using namespace asio::experimental::awaitable_operators;
-
-using ipc_endpoint = wirecall::ipc_endpoint<std::string>;
-using wirecall::ignore_result;
 
 enum class daytime {
     morning,
@@ -24,7 +19,7 @@ enum class daytime {
 };
 
 asio::awaitable<void> client(asio::ip::tcp::socket socket) {
-    ipc_endpoint endpoint{std::move(socket)};
+    wirecall::ipc_endpoint<std::string> endpoint{std::move(socket)};
 
     co_await endpoint.add_method("name", []() {
         return "client"s;
@@ -81,7 +76,7 @@ asio::awaitable<void> client(asio::ip::tcp::socket socket) {
 }
 
 asio::awaitable<void> server(asio::ip::tcp::socket socket) {
-    ipc_endpoint endpoint{std::move(socket)};
+    wirecall::ipc_endpoint<std::string> endpoint{std::move(socket)};
 
     // a simple method
     co_await endpoint.add_method("number", []() {
@@ -103,7 +98,7 @@ asio::awaitable<void> server(asio::ip::tcp::socket socket) {
     // a method using a callback
     co_await endpoint.add_method("get_secret", [&endpoint](std::string callback_name) -> asio::awaitable<void> {
         // use ignore_result since we are not interested in receiving a response
-        co_await endpoint.call<ignore_result>(callback_name, "a secret"sv);
+        co_await endpoint.call<wirecall::ignore_result>(callback_name, "a secret"sv);
     });
 
     // a throwing method
@@ -114,14 +109,16 @@ asio::awaitable<void> server(asio::ip::tcp::socket socket) {
     co_await endpoint.run();
 }
 
-asio::awaitable<void> client(asio::io_context & ctx) {
+asio::awaitable<void> client() {
+    auto ctx = co_await asio::this_coro::executor;
     asio::ip::tcp::endpoint ep(asio::ip::make_address("127.0.0.1"), 5678);
     asio::ip::tcp::socket socket{ctx, ep.protocol()};
     co_await socket.async_connect(ep, asio::use_awaitable);
     co_await client(std::move(socket));
 }
 
-asio::awaitable<void> server(asio::io_context & ctx) {
+asio::awaitable<void> server() {
+    auto ctx = co_await asio::this_coro::executor;
     asio::ip::tcp::endpoint ep(asio::ip::make_address("127.0.0.1"), 5678);
     asio::ip::tcp::acceptor acceptor(ctx, ep);
     asio::ip::tcp::socket socket = co_await acceptor.async_accept(asio::use_awaitable);
@@ -131,8 +128,9 @@ asio::awaitable<void> server(asio::io_context & ctx) {
 }
 
 int main(void) {
-    asio::io_context ctx(2);
-    asio::co_spawn(ctx, server(ctx) && client(ctx), asio::detached);
-    ctx.run();
+    asio::thread_pool ctx(2);
+    asio::co_spawn(ctx, server(), asio::detached);
+    asio::co_spawn(ctx, client(), asio::detached);
+    ctx.join();
     return 0;
 }

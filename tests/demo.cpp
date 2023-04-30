@@ -1,7 +1,6 @@
-#include <asio.hpp>
-#include <asio/experimental/awaitable_operators.hpp>
-
 #include <wirecall.hpp>
+
+#include <asio.hpp>
 
 #include <iostream>
 #include <string>
@@ -30,14 +29,16 @@ asio::awaitable<void> server(asio::ip::tcp::socket socket) {
     co_await endpoint.run();
 }
 
-asio::awaitable<void> client(asio::io_context & ctx) {
+asio::awaitable<void> client() {
+    auto ctx = co_await asio::this_coro::executor;
     asio::ip::tcp::endpoint ep(asio::ip::make_address("127.0.0.1"), 5678);
     asio::ip::tcp::socket socket{ctx, ep.protocol()};
     co_await socket.async_connect(ep, asio::use_awaitable);
     co_await client(std::move(socket));
 }
 
-asio::awaitable<void> server(asio::io_context & ctx) {
+asio::awaitable<void> server() {
+    auto ctx = co_await asio::this_coro::executor;
     asio::ip::tcp::endpoint ep(asio::ip::make_address("127.0.0.1"), 5678);
     asio::ip::tcp::acceptor acceptor(ctx, ep);
     asio::ip::tcp::socket socket = co_await acceptor.async_accept(asio::use_awaitable);
@@ -45,9 +46,9 @@ asio::awaitable<void> server(asio::io_context & ctx) {
 }
 
 int main(void) {
-    using namespace asio::experimental::awaitable_operators;
-    asio::io_context ctx(2);
-    asio::co_spawn(ctx, server(ctx) && client(ctx), asio::detached);
-    ctx.run();
+    asio::thread_pool ctx(2);
+    asio::co_spawn(ctx, server(), asio::detached);
+    asio::co_spawn(ctx, client(), asio::detached);
+    ctx.join();
     return 0;
 }
