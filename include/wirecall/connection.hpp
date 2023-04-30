@@ -7,6 +7,7 @@
 
 #include <asio/awaitable.hpp>
 
+#include <concepts>
 #include <utility>
 
 namespace wirecall {
@@ -34,6 +35,11 @@ struct basic_connection {
     asio::awaitable<void> send(T const & msg) {
         auto lock = co_await write_mutex.lock();
         co_await wirepump::write(m_socket, msg);
+        if constexpr (requires (socket_type socket) {
+            { socket.flush() } -> std::same_as<asio::awaitable<void>>;
+        }) {
+            co_await m_socket.flush();
+        }
     }
 
     template <typename T>
