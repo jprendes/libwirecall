@@ -4,13 +4,16 @@
 
 #include <asio/any_io_executor.hpp>
 #include <asio/awaitable.hpp>
+#include <asio/buffer.hpp>
+#include <asio/use_awaitable.hpp>
 #include <asio/write.hpp>
 
 #include <concepts>
 #include <cstdint>
 #include <memory>
-#include <span>
 #include <sstream>
+#include <string_view>
+#include <string>
 #include <utility>
 
 namespace wirecall {
@@ -18,8 +21,8 @@ namespace wirecall {
 struct any_socket {
   private:
     struct impl_base {
-        virtual asio::awaitable<void> read(uint8_t &) = 0;
-        virtual asio::awaitable<void> write(std::span<uint8_t const> const &) = 0;
+        virtual asio::awaitable<std::string> read(size_t n = 1024) = 0;
+        virtual asio::awaitable<void> write(std::string_view const &) = 0;
         virtual bool is_open() const = 0;
         virtual void close() = 0;
         virtual void cancel() = 0;
@@ -31,11 +34,14 @@ struct any_socket {
     struct impl : public impl_base {
         socket_type m_socket;
         impl(socket_type socket) : m_socket{std::move(socket)} {}
-        asio::awaitable<void> read(uint8_t & c) override {
-            co_await wirepump::read(m_socket, c);
+        asio::awaitable<std::string> read(size_t n) override {
+            std::string c(n, '\0');
+            auto m = co_await m_socket.async_read_some(asio::buffer(c), asio::use_awaitable);
+            c.resize(m);
+            co_return c;
         }
-        asio::awaitable<void> write(std::span<uint8_t const> const & c) override {
-            co_await asio::async_write(m_socket, asio::buffer(c.data(), c.size()), asio::use_awaitable);
+        asio::awaitable<void> write(std::string_view const & c) override {
+            co_await asio::async_write(m_socket, asio::buffer(c), asio::use_awaitable);
         }
         bool is_open() const override { return m_socket.is_open(); }
         void close() override { m_socket.close(); }
@@ -45,7 +51,8 @@ struct any_socket {
 
   private:
     std::unique_ptr<impl_base> m_impl;
-    std::stringstream m_stream;
+    std::stringstream m_write_buffer;
+    std::stringstream m_read_buffer;
 
   public:
     template <typename socket_type>
@@ -59,16 +66,20 @@ struct any_socket {
     any_socket(socket_type socket) : m_impl{std::make_unique<impl<socket_type>>(std::move(socket))} {}
 
     asio::awaitable<void> read(uint8_t & c) {
-        co_await m_impl->read(c);
+        c = m_read_buffer.get();
+        while (m_read_buffer.eof()) {
+            m_read_buffer.str(co_await m_impl->read());
+            m_read_buffer.clear();
+            c = m_read_buffer.get();
+        }
     }
     asio::awaitable<void> write(uint8_t const & c) {
-        wirepump::write(m_stream, c);
+        m_write_buffer.put(c);
         co_return;
     }
     asio::awaitable<void> flush() {
-        auto data = m_stream.str();
-        m_stream.str("");
-        co_await m_impl->write({(uint8_t const *)data.data(), data.size()});
+        co_await m_impl->write(m_write_buffer.str());
+        m_write_buffer.str("");
     }
     bool is_open() const { return m_impl->is_open(); }
     void close() { m_impl->close(); }
