@@ -29,11 +29,7 @@ asio::awaitable<void> client(asio::ip::tcp::socket socket) {
         std::cout << "callback received the secret: " << secret << "\n";
     });
 
-    asio::co_spawn(
-        endpoint.get_executor(),
-        endpoint.run(),
-        asio::detached
-    );
+    endpoint.run(asio::detached);
 
     // call a simple method
     auto number = co_await endpoint.call<size_t>("number");

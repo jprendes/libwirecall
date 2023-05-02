@@ -52,12 +52,10 @@ struct basic_async_channel {
             return m_channel->try_receive([](auto&&...){});
         } else {
             std::optional<return_type> result;
-            if (m_channel->try_receive([this, &result](asio::error_code, auto&&... values){
-                result = std::make_tuple(std::forward<decltype(values)>(values)...);
-            })) {
-                return result;
-            }
-            return std::nullopt;
+            m_channel->try_receive([this, &result](asio::error_code, auto&&... values){
+                result = return_type(std::forward<decltype(values)>(values)...);
+            });
+            return result;
         }
     }
 

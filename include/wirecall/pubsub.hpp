@@ -54,7 +54,6 @@ struct basic_pubsub_endpoint {
     using default_callback_ptr_type = std::shared_ptr<default_callback_type>;
 
     basic_connection<socket_type, basic_async_mutex<channel_type>> m_connection;
-    channel_type<> m_run_barrier;
 
     basic_async_mutex<channel_type> m_mutex;
     std::unordered_map<key_type, callback_ptr_type> m_callbacks = {};
@@ -63,7 +62,6 @@ struct basic_pubsub_endpoint {
   public:
     basic_pubsub_endpoint(socket_type socket)
       : m_connection(std::move(socket))
-      , m_run_barrier(m_connection.get_executor())
       , m_mutex(m_connection.get_executor())
     {}
 
@@ -127,7 +125,6 @@ struct basic_pubsub_endpoint {
     }
 
     asio::awaitable<void> run() {
-        m_run_barrier.try_receive();
         while (m_connection.is_open()) {
             auto [key, payload] =
                 co_await m_connection.template receive<std::tuple<key_type, std::string>>();
@@ -138,6 +135,11 @@ struct basic_pubsub_endpoint {
                 asio::detached
             );
         }
+    }
+
+    template <typename token_type>
+    auto run(token_type && token) {
+        return asio::co_spawn(get_executor(), run(), std::forward<token_type>(token));
     }
 
     auto is_open() const {

@@ -9,11 +9,7 @@
 asio::awaitable<void> client(asio::ip::tcp::socket socket) {
     wirecall::ipc_endpoint<std::string> endpoint{std::move(socket)};
 
-    asio::co_spawn(
-        endpoint.get_executor(),
-        endpoint.run(),
-        asio::detached
-    );
+    endpoint.run(asio::detached);
 
     auto result = co_await endpoint.call<int>("sum", 20, 22);
     std::cout << "20 + 22 = " << result << "\n";

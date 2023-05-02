@@ -173,6 +173,11 @@ struct basic_ipc_endpoint {
         co_await m_pubsub.run();
     }
 
+    template <typename token_type>
+    auto run(token_type && token) {
+        return asio::co_spawn(get_executor(), run(), std::forward<token_type>(token));
+    }
+
     auto is_open() const {
         return m_pubsub.is_open();
     }
