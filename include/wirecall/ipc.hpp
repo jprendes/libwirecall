@@ -2,12 +2,14 @@
 
 #include "wirecall/async_channel.hpp"
 #include "wirecall/async_mutex.hpp"
+#include "wirecall/buffered_socket.hpp"
 #include "wirecall/connection.hpp"
 #include "wirecall/pubsub.hpp"
 
 #include "wirepump.hpp"
 
 #include <asio/awaitable.hpp>
+#include <asio/generic/stream_protocol.hpp>
 
 #include <concepts>
 #include <cstdint>
@@ -205,6 +207,6 @@ struct basic_ipc_endpoint {
 };
 
 template <typename key_type>
-using ipc_endpoint = basic_ipc_endpoint<key_type, any_socket, async_channel>;
+using ipc_endpoint = basic_ipc_endpoint<key_type, buffered_socket<asio::generic::stream_protocol::socket>, async_channel>;
 
 }

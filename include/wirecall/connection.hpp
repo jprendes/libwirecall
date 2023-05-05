@@ -1,11 +1,12 @@
 #pragma once
 
-#include "wirecall/any_socket.hpp"
 #include "wirecall/async_mutex.hpp"
+#include "wirecall/buffered_socket.hpp"
 
 #include "wirepump.hpp"
 
 #include <asio/awaitable.hpp>
+#include <asio/generic/stream_protocol.hpp>
 
 #include <concepts>
 #include <utility>
@@ -65,6 +66,6 @@ struct basic_connection {
     }
 };
 
-using connection = basic_connection<any_socket, async_mutex>;
+using connection = basic_connection<buffered_socket<asio::generic::stream_protocol::socket>, async_mutex>;
 
 }

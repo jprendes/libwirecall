@@ -1,8 +1,8 @@
 #pragma once
 
-#include "wirecall/any_socket.hpp"
 #include "wirecall/async_channel.hpp"
 #include "wirecall/async_mutex.hpp"
+#include "wirecall/buffered_socket.hpp"
 #include "wirecall/connection.hpp"
 
 #include "wirepump.hpp"
@@ -10,6 +10,7 @@
 #include <asio/awaitable.hpp>
 #include <asio/co_spawn.hpp>
 #include <asio/detached.hpp>
+#include <asio/generic/stream_protocol.hpp>
 
 #include <functional>
 #include <memory>
@@ -174,6 +175,6 @@ struct basic_pubsub_endpoint {
 };
 
 template <typename key_type>
-using pubsub_endpoint = basic_pubsub_endpoint<key_type, any_socket, async_channel>;
+using pubsub_endpoint = basic_pubsub_endpoint<key_type, buffered_socket<asio::generic::stream_protocol::socket>, async_channel>;
 
 }
